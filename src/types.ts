@@ -1,0 +1,23 @@
+export interface Slide {
+  id: string;
+  title: string;
+  content: string;
+  template: 'blank' | 'title' | 'title-content' | 'two-column' | 'image-text';
+  backgroundColor: string;
+  textColor: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  slides: Slide[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AppState {
+  projects: Project[];
+  currentProject: Project | null;
+  currentSlideIndex: number;
+}
+
