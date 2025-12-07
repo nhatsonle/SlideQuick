@@ -50,6 +50,11 @@ export default function Editor() {
     await exportToPDF(currentProject);
   };
 
+  // const handleLogout = () => {
+  //   logout();
+  //   navigate('/login');
+  // };
+
   const templates: Array<{ id: Slide['template']; name: string; description: string }> = [
     { id: 'blank', name: '空白', description: 'ゼロから作成' },
     { id: 'title', name: 'タイトル', description: '中央揃えの大きなタイトル' },
@@ -74,6 +79,9 @@ export default function Editor() {
             <Play size={18} />
             プレゼン開始
           </button>
+          {/* <button className="btn-secondary" onClick={handleLogout} style={{ marginLeft: 8 }}>
+            ログアウト
+          </button> */}
         </div>
       </header>
 
