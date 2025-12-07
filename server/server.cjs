@@ -1,7 +1,7 @@
 // server/server.cjs (sửa để thêm auth endpoints)
-const express = require('../node_modules/express');
-const cors = require('../node_modules/cors');
-const bodyParser = require('../node_modules/body-parser');
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
 const {
   initializeDatabase,
   getAllProjects,
@@ -12,12 +12,12 @@ const {
   getUserByUsername,
   createUser,
   verifyUser,
-} = require('./database.cjs');
+} = require("./database.cjs");
 
-const crypto = require('crypto');
-const jwt = require('../node_modules/jsonwebtoken');
-const requireAuth = require('./authMiddleware.cjs');
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const requireAuth = require("./authMiddleware.cjs");
+const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const app = express();
 const PORT = 3001;
 
@@ -29,71 +29,79 @@ app.use(bodyParser.json());
 initializeDatabase();
 
 // ルート
-app.get('/', (req, res) => {
-  res.json({ message: 'SlideQuick API サーバーが動作中です 🚀' });
+app.get("/", (req, res) => {
+  res.json({ message: "SlideQuick API サーバーが動作中です 🚀" });
 });
 
 /* --------- Projects endpoints (既存) ---------- */
 // Replace the public GET endpoints with protected ones
 // GET /api/projects (protected)
-app.get('/api/projects', requireAuth, (req, res) => {
+app.get("/api/projects", requireAuth, (req, res) => {
   try {
     const userId = req.user && req.user.id;
     const projects = getAllProjects(userId);
     res.json(projects);
   } catch (error) {
-    console.error('プロジェクト取得エラー:', error);
-    res.status(500).json({ error: 'プロジェクトの取得に失敗しました' });
+    console.error("プロジェクト取得エラー:", error);
+    res.status(500).json({ error: "プロジェクトの取得に失敗しました" });
   }
 });
 
-app.get('/api/projects/:id', requireAuth, (req, res) => {
+app.get("/api/projects/:id", requireAuth, (req, res) => {
   try {
     const userId = req.user && req.user.id;
     const project = getProjectById(req.params.id, userId);
     if (!project) {
-      return res.status(404).json({ error: 'プロジェクトが見つかりません または 権限がありません' });
+      return res.status(404).json({
+        error: "プロジェクトが見つかりません または 権限がありません",
+      });
     }
     res.json(project);
   } catch (error) {
-    console.error('プロジェクト取得エラー:', error);
-    res.status(500).json({ error: 'プロジェクトの取得に失敗しました' });
+    console.error("プロジェクト取得エラー:", error);
+    res.status(500).json({ error: "プロジェクトの取得に失敗しました" });
   }
 });
 
 // Protect create/update/delete with JWT auth
-app.post('/api/projects', requireAuth, (req, res) => {
+app.post("/api/projects", requireAuth, (req, res) => {
   try {
     const userId = req.user && req.user.id;
     const project = createProject(req.body, userId);
     res.status(201).json(project);
   } catch (error) {
-    console.error('プロジェクト作成エラー:', error);
-    res.status(500).json({ error: 'プロジェクトの作成に失敗しました' });
+    console.error("プロジェクト作成エラー:", error);
+    res.status(500).json({ error: "プロジェクトの作成に失敗しました" });
   }
 });
 
-app.put('/api/projects/:id', requireAuth, (req, res) => {
+app.put("/api/projects/:id", requireAuth, (req, res) => {
   try {
     const userId = req.user && req.user.id;
     const project = updateProject(req.body, userId);
-    if (!project) return res.status(404).json({ error: 'プロジェクトが見つからないか権限がありません' });
+    if (!project)
+      return res
+        .status(404)
+        .json({ error: "プロジェクトが見つからないか権限がありません" });
     res.json(project);
   } catch (error) {
-    console.error('プロジェクト更新エラー:', error);
-    res.status(500).json({ error: 'プロジェクトの更新に失敗しました' });
+    console.error("プロジェクト更新エラー:", error);
+    res.status(500).json({ error: "プロジェクトの更新に失敗しました" });
   }
 });
 
-app.delete('/api/projects/:id', requireAuth, (req, res) => {
+app.delete("/api/projects/:id", requireAuth, (req, res) => {
   try {
     const userId = req.user && req.user.id;
     const ok = deleteProject(req.params.id, userId);
-    if (!ok) return res.status(404).json({ error: 'プロジェクトが見つからないか権限がありません' });
-    res.json({ message: 'プロジェクトが削除されました' });
+    if (!ok)
+      return res
+        .status(404)
+        .json({ error: "プロジェクトが見つからないか権限がありません" });
+    res.json({ message: "プロジェクトが削除されました" });
   } catch (error) {
-    console.error('プロジェクト削除エラー:', error);
-    res.status(500).json({ error: 'プロジェクトの削除に失敗しました' });
+    console.error("プロジェクト削除エラー:", error);
+    res.status(500).json({ error: "プロジェクトの削除に失敗しました" });
   }
 });
 
@@ -101,20 +109,25 @@ app.delete('/api/projects/:id', requireAuth, (req, res) => {
 
 // POST /api/register
 // body: { username, email?, password }
-app.post('/api/register', (req, res) => {
+app.post("/api/register", (req, res) => {
   try {
     const { username, email, password } = req.body;
     if (!username || !password) {
-      return res.status(400).json({ error: 'username と password は必須です' });
+      return res.status(400).json({ error: "username と password は必須です" });
     }
 
     if (getUserByUsername(username)) {
-      return res.status(409).json({ error: 'そのユーザー名は既に使用されています' });
+      return res
+        .status(409)
+        .json({ error: "そのユーザー名は既に使用されています" });
     }
 
     const id = crypto.randomUUID();
-    const salt = crypto.randomBytes(16).toString('hex');
-    const password_hash = require('./database.cjs')._hashPassword(password, salt);
+    const salt = crypto.randomBytes(16).toString("hex");
+    const password_hash = require("./database.cjs")._hashPassword(
+      password,
+      salt
+    );
 
     const user = createUser({
       id,
@@ -122,37 +135,61 @@ app.post('/api/register', (req, res) => {
       email: email || null,
       password_hash,
       salt,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
     });
 
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
-    res.status(201).json({ user: { id: user.id, username: user.username, email: user.email, createdAt: user.created_at }, token });
+    res.status(201).json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        createdAt: user.created_at,
+      },
+      token,
+    });
   } catch (error) {
-    console.error('ユーザー作成エラー:', error);
-    res.status(500).json({ error: 'ユーザーの作成に失敗しました' });
+    console.error("ユーザー作成エラー:", error);
+    res.status(500).json({ error: "ユーザーの作成に失敗しました" });
   }
 });
 
 // POST /api/login
 // body: { username, password }
-app.post('/api/login', (req, res) => {
+app.post("/api/login", (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
-      return res.status(400).json({ error: 'username と password は必須です' });
+      return res.status(400).json({ error: "username と password は必須です" });
     }
 
     const user = verifyUser(username, password);
-    if (!user) return res.status(401).json({ error: '認証に失敗しました' });
+    if (!user) return res.status(401).json({ error: "認証に失敗しました" });
 
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign(
+      { id: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     // Return token + user info
-    res.json({ user: { id: user.id, username: user.username, email: user.email, createdAt: user.createdAt }, token });
+    res.json({
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        createdAt: user.createdAt,
+      },
+      token,
+    });
   } catch (error) {
-    console.error('ログインエラー:', error);
-    res.status(500).json({ error: 'ログインに失敗しました' });
+    console.error("ログインエラー:", error);
+    res.status(500).json({ error: "ログインに失敗しました" });
   }
 });
 

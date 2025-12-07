@@ -1,18 +1,73 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AppProvider } from './context/AppContext';
-import Home from './pages/Home';
-import Editor from './pages/Editor';
-import Presentation from './pages/Presentation';
-import './App.css';
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
+import { AppProvider, useApp } from "./src/context/AppContext";
+import Home from "./src/pages/Home";
+import Editor from "./src/pages/Editor";
+import Presentation from "./src/pages/Presentation";
+import Login from "./src/pages/Login";
+import Register from "./src/pages/Register";
+import "./App.css";
+
+function RequireAuth({ children }: { children: React.ReactElement }) {
+  const { currentUser, loading } = useApp();
+  const location = useLocation();
+
+  if (loading) {
+    return null;
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  return children;
+}
 
 function App() {
   return (
     <AppProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/editor/:projectId" element={<Editor />} />
-          <Route path="/present/:projectId" element={<Presentation />} />
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <Home />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/home"
+            element={
+              <RequireAuth>
+                <Home />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/editor/:projectId"
+            element={
+              <RequireAuth>
+                <Editor />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/present/:projectId"
+            element={
+              <RequireAuth>
+                <Presentation />
+              </RequireAuth>
+            }
+          />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
         </Routes>
       </Router>
     </AppProvider>
@@ -20,4 +75,3 @@ function App() {
 }
 
 export default App;
-

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { Slide } from '../types';
-import '../styles/SlideEditor.css';
+import { useState } from "react";
+import { useApp } from "../context/AppContext";
+import { Slide } from "../../types";
+import "../styles/SlideEditor.css";
 
 interface SlideEditorProps {
   slide: Slide;
@@ -19,7 +19,7 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
 
   const renderSlideContent = () => {
     switch (slide.template) {
-      case 'title':
+      case "title":
         return (
           <div className="slide-template-title">
             {isEditingTitle ? (
@@ -33,14 +33,17 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                 style={{ color: slide.textColor }}
               />
             ) : (
-              <h1 onClick={() => setIsEditingTitle(true)} style={{ color: slide.textColor }}>
+              <h1
+                onClick={() => setIsEditingTitle(true)}
+                style={{ color: slide.textColor }}
+              >
                 {slide.title}
               </h1>
             )}
           </div>
         );
 
-      case 'title-content':
+      case "title-content":
         return (
           <div className="slide-template-title-content">
             {isEditingTitle ? (
@@ -54,7 +57,10 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                 style={{ color: slide.textColor }}
               />
             ) : (
-              <h2 onClick={() => setIsEditingTitle(true)} style={{ color: slide.textColor }}>
+              <h2
+                onClick={() => setIsEditingTitle(true)}
+                style={{ color: slide.textColor }}
+              >
                 {slide.title}
               </h2>
             )}
@@ -68,14 +74,18 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                 style={{ color: slide.textColor }}
               />
             ) : (
-              <div onClick={() => setIsEditingContent(true)} className="slide-content" style={{ color: slide.textColor }}>
+              <div
+                onClick={() => setIsEditingContent(true)}
+                className="slide-content"
+                style={{ color: slide.textColor }}
+              >
                 {slide.content}
               </div>
             )}
           </div>
         );
 
-      case 'two-column':
+      case "two-column":
         return (
           <div className="slide-template-two-column">
             {isEditingTitle ? (
@@ -89,7 +99,10 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                 style={{ color: slide.textColor }}
               />
             ) : (
-              <h2 onClick={() => setIsEditingTitle(true)} style={{ color: slide.textColor }}>
+              <h2
+                onClick={() => setIsEditingTitle(true)}
+                style={{ color: slide.textColor }}
+              >
                 {slide.title}
               </h2>
             )}
@@ -104,7 +117,11 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                   style={{ color: slide.textColor }}
                 />
               ) : (
-                <div onClick={() => setIsEditingContent(true)} className="slide-content" style={{ color: slide.textColor }}>
+                <div
+                  onClick={() => setIsEditingContent(true)}
+                  className="slide-content"
+                  style={{ color: slide.textColor }}
+                >
                   {slide.content}
                 </div>
               )}
@@ -112,10 +129,13 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
           </div>
         );
 
-      case 'image-text':
+      case "image-text":
         return (
           <div className="slide-template-image-text">
-            <div className="image-placeholder" style={{ borderColor: slide.textColor }}>
+            <div
+              className="image-placeholder"
+              style={{ borderColor: slide.textColor }}
+            >
               <span style={{ color: slide.textColor }}>📷 画像</span>
             </div>
             <div className="text-section">
@@ -130,7 +150,10 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                   style={{ color: slide.textColor }}
                 />
               ) : (
-                <h2 onClick={() => setIsEditingTitle(true)} style={{ color: slide.textColor }}>
+                <h2
+                  onClick={() => setIsEditingTitle(true)}
+                  style={{ color: slide.textColor }}
+                >
                   {slide.title}
                 </h2>
               )}
@@ -144,7 +167,11 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                   style={{ color: slide.textColor }}
                 />
               ) : (
-                <div onClick={() => setIsEditingContent(true)} className="slide-content" style={{ color: slide.textColor }}>
+                <div
+                  onClick={() => setIsEditingContent(true)}
+                  className="slide-content"
+                  style={{ color: slide.textColor }}
+                >
                   {slide.content}
                 </div>
               )}
@@ -152,7 +179,7 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
           </div>
         );
 
-      case 'blank':
+      case "blank":
       default:
         return (
           <div className="slide-template-blank">
@@ -166,8 +193,12 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
                 style={{ color: slide.textColor }}
               />
             ) : (
-              <div onClick={() => setIsEditingContent(true)} className="slide-content-full" style={{ color: slide.textColor }}>
-                {slide.content || 'クリックして編集'}
+              <div
+                onClick={() => setIsEditingContent(true)}
+                className="slide-content-full"
+                style={{ color: slide.textColor }}
+              >
+                {slide.content || "クリックして編集"}
               </div>
             )}
           </div>
@@ -177,7 +208,10 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
 
   return (
     <div className="slide-editor">
-      <div className="slide-canvas" style={{ backgroundColor: slide.backgroundColor }}>
+      <div
+        className="slide-canvas"
+        style={{ backgroundColor: slide.backgroundColor }}
+      >
         {renderSlideContent()}
       </div>
       <div className="slide-properties">
@@ -202,7 +236,9 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
           <label>テンプレート</label>
           <select
             value={slide.template}
-            onChange={(e) => handleUpdate({ template: e.target.value as Slide['template'] })}
+            onChange={(e) =>
+              handleUpdate({ template: e.target.value as Slide["template"] })
+            }
           >
             <option value="blank">空白</option>
             <option value="title">タイトル</option>
@@ -215,4 +251,3 @@ export default function SlideEditor({ slide, projectId }: SlideEditorProps) {
     </div>
   );
 }
-

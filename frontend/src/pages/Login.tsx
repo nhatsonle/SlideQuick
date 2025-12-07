@@ -1,27 +1,27 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useApp } from '../context/AppContext';
-import '../styles/Home.css';
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useApp } from "../context/AppContext";
+import "../styles/Home.css";
 
 export default function Login() {
   const { login } = useApp();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
     if (!username.trim() || !password) {
-      alert('ユーザー名とパスワードを入力してください');
+      alert("ユーザー名とパスワードを入力してください");
       return;
     }
     setSubmitting(true);
     const ok = await login(username.trim(), password);
     setSubmitting(false);
     if (ok) {
-      navigate('/');
+      navigate("/");
     } else {
-      alert('ログインに失敗しました。資格情報を確認してください。');
+      alert("ログインに失敗しました。資格情報を確認してください。");
     }
   };
 
@@ -35,7 +35,7 @@ export default function Login() {
       </header>
 
       <main className="home-main">
-        <div style={{ maxWidth: 480, margin: '0 auto' }} className="container">
+        <div style={{ maxWidth: 480, margin: "0 auto" }} className="container">
           <div className="modal">
             <h2>ログイン</h2>
             <input
@@ -51,11 +51,24 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
             />
             <div className="modal-actions" style={{ marginTop: 8 }}>
-              <Link to="/register" className="btn-secondary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Link
+                to="/register"
+                className="btn-secondary"
+                style={{
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 新規登録
               </Link>
-              <button className="btn-primary" onClick={handleLogin} disabled={submitting}>
-                {submitting ? 'ログイン中...' : 'ログイン'}
+              <button
+                className="btn-primary"
+                onClick={handleLogin}
+                disabled={submitting}
+              >
+                {submitting ? "ログイン中..." : "ログイン"}
               </button>
             </div>
           </div>
