@@ -46,9 +46,17 @@ function initializeDatabase() {
       background_color TEXT NOT NULL,
       text_color TEXT NOT NULL,
       slide_order INTEGER NOT NULL,
+      image_url TEXT,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
     )
   `);
+
+  // Check if slides table has image_url (migration for existing dbs)
+  const slideCols = db.prepare("PRAGMA table_info('slides')").all();
+  const hasImageUrl = slideCols.some((c) => c.name === "image_url");
+  if (!hasImageUrl) {
+      db.exec("ALTER TABLE slides ADD COLUMN image_url TEXT");
+  }
 
   // ユーザーテーブルを作成
   db.exec(`
@@ -87,7 +95,9 @@ function getAllProjects(ownerId) {
         content: slide.content,
         template: slide.template,
         backgroundColor: slide.background_color,
+        backgroundColor: slide.background_color,
         textColor: slide.text_color,
+        imageUrl: slide.image_url
       })),
     };
   });
@@ -113,7 +123,9 @@ function getProjectById(id, ownerId) {
       content: slide.content,
       template: slide.template,
       backgroundColor: slide.background_color,
+      backgroundColor: slide.background_color,
       textColor: slide.text_color,
+      imageUrl: slide.image_url
     })),
   };
 }
@@ -126,8 +138,8 @@ function createProject(project, ownerId) {
   `);
 
   const insertSlide = db.prepare(`
-    INSERT INTO slides (id, project_id, title, content, template, background_color, text_color, slide_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO slides (id, project_id, title, content, template, background_color, text_color, slide_order, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const transaction = db.transaction(() => {
@@ -148,7 +160,8 @@ function createProject(project, ownerId) {
         slide.template,
         slide.backgroundColor,
         slide.textColor,
-        index
+        index,
+        slide.imageUrl || null
       );
     });
   });
@@ -168,8 +181,8 @@ function updateProject(project, ownerId) {
   const deleteSlides = db.prepare("DELETE FROM slides WHERE project_id = ?");
 
   const insertSlide = db.prepare(`
-    INSERT INTO slides (id, project_id, title, content, template, background_color, text_color, slide_order)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO slides (id, project_id, title, content, template, background_color, text_color, slide_order, image_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const transaction = db.transaction(() => {
@@ -194,7 +207,8 @@ function updateProject(project, ownerId) {
         slide.template,
         slide.backgroundColor,
         slide.textColor,
-        index
+        index,
+        slide.imageUrl || null
       );
     });
   });

@@ -5,6 +5,7 @@ export interface Slide {
   template: 'blank' | 'title' | 'title-content' | 'two-column' | 'image-text';
   backgroundColor: string;
   textColor: string;
+  imageUrl?: string;
 }
 
 export interface Project {

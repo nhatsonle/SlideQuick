@@ -2,6 +2,9 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const {
   initializeDatabase,
   getAllProjects,
@@ -24,6 +27,24 @@ const PORT = 3001;
 // ミドルウェア
 app.use(cors());
 app.use(bodyParser.json());
+// Serve uploads folder
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+app.use("/uploads", express.static(uploadDir));
+
+// Multer config
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage: storage });
 
 // データベースを初期化
 initializeDatabase();
@@ -103,6 +124,15 @@ app.delete("/api/projects/:id", requireAuth, (req, res) => {
     console.error("プロジェクト削除エラー:", error);
     res.status(500).json({ error: "プロジェクトの削除に失敗しました" });
   }
+});
+
+// POST /api/upload
+app.post("/api/upload", upload.single("image"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+  const url = `http://localhost:${PORT}/uploads/${req.file.filename}`;
+  res.json({ url });
 });
 
 /* --------- Auth endpoints (新規) ---------- */

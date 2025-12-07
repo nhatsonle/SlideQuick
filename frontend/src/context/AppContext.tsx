@@ -26,6 +26,7 @@ interface AppContextType {
     updates: Partial<Slide>
   ) => Promise<void>;
   deleteSlide: (projectId: string, slideId: string) => Promise<void>;
+  duplicateSlide: (projectId: string, slideId: string) => Promise<void>;
   setCurrentSlideIndex: (index: number) => void;
   refreshProjects: () => Promise<void>;
   // auth
@@ -72,9 +73,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
   // プロジェクトをAPIから読み込む
   // accept overrideToken so we can call right after login/register
-  const refreshProjects = async (overrideToken?: string) => {
+  const refreshProjects = async (overrideToken?: string, silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await fetch(`${API_URL}/projects`, {
         headers: getHeaders(overrideToken),
       });
@@ -106,7 +107,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       console.error("プロジェクトの読み込みエラー:", error);
       // サーバーが起動していない可能性
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -173,7 +174,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       if (!response.ok) throw new Error("プロジェクトの作成に失敗しました");
 
-      await refreshProjects();
+      await refreshProjects(undefined, true);
     } catch (error) {
       console.error("プロジェクト作成エラー:", error);
       alert("プロジェクトの作成に失敗しました");
@@ -193,7 +194,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setCurrentProject(null);
       }
 
-      await refreshProjects();
+      await refreshProjects(undefined, true);
     } catch (error) {
       console.error("プロジェクト削除エラー:", error);
       alert("プロジェクトの削除に失敗しました");
@@ -212,7 +213,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
 
       if (!response.ok) throw new Error("プロジェクトの更新に失敗しました");
 
-      await refreshProjects();
+      await refreshProjects(undefined, true);
     } catch (error) {
       console.error("プロジェクト更新エラー:", error);
       alert("プロジェクトの更新に失敗しました");
@@ -271,6 +272,33 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     };
 
     await updateProject(updatedProject);
+  };
+
+  const duplicateSlide = async (projectId: string, slideId: string) => {
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+
+    const slideIndex = project.slides.findIndex((s) => s.id === slideId);
+    if (slideIndex === -1) return;
+
+    const originalSlide = project.slides[slideIndex];
+    const newSlide: Slide = {
+      ...originalSlide,
+      id: crypto.randomUUID(),
+      title: originalSlide.title,
+    };
+
+    const newSlides = [...project.slides];
+    newSlides.splice(slideIndex + 1, 0, newSlide);
+
+    const updatedProject = {
+      ...project,
+      slides: newSlides,
+      updatedAt: new Date(),
+    };
+
+    await updateProject(updatedProject);
+    setCurrentSlideIndex(slideIndex + 1);
   };
 
   /* ----------------
@@ -361,6 +389,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         addSlide,
         updateSlide,
         deleteSlide,
+        duplicateSlide,
         setCurrentSlideIndex,
         refreshProjects,
         login,

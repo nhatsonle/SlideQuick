@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Slide } from '../types';
+import { Slide } from '../../types';
 import SlideEditor from '../components/SlideEditor';
 import { exportToPDF } from '../utils/pdfExport';
 import '../styles/Editor.css';
@@ -10,8 +10,9 @@ import '../styles/Editor.css';
 export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide } = useApp();
+  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide } = useApp();
   const [showTemplates, setShowTemplates] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideId: string } | null>(null);
 
   useEffect(() => {
     const project = projects.find(p => p.id === projectId);
@@ -22,11 +23,21 @@ export default function Editor() {
     }
   }, [projectId, projects]);
 
+  useEffect(() => {
+    const handleClickOutside = () => setContextMenu(null);
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, []);
+
   if (!currentProject) {
     return <div>Loading...</div>;
   }
 
   const currentSlide = currentProject.slides[currentSlideIndex];
+
+  if (!currentSlide) {
+    return <div>Loading slide...</div>;
+  }
 
   const handleAddSlide = async (template: Slide['template']) => {
     await addSlide(currentProject.id, template);
@@ -40,6 +51,22 @@ export default function Editor() {
         setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1));
       }
     }
+  };
+
+  const handleDuplicateSlide = async () => {
+    if (contextMenu) {
+      await duplicateSlide(currentProject.id, contextMenu.slideId);
+      setContextMenu(null);
+    }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent, slideId: string) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      slideId
+    });
   };
 
   const handlePresent = () => {
@@ -99,6 +126,7 @@ export default function Editor() {
                 key={slide.id}
                 className={`slide-thumbnail ${index === currentSlideIndex ? 'active' : ''}`}
                 onClick={() => setCurrentSlideIndex(index)}
+                onContextMenu={(e) => handleContextMenu(e, slide.id)}
               >
                 <div className="thumbnail-number">{index + 1}</div>
                 <div className="thumbnail-content" style={{ backgroundColor: slide.backgroundColor, color: slide.textColor }}>
@@ -179,6 +207,39 @@ export default function Editor() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            backgroundColor: 'white',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+            borderRadius: '4px',
+            padding: '8px 0',
+            zIndex: 1000,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              padding: '8px 16px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+            className="context-menu-item"
+            onClick={handleDuplicateSlide}
+          >
+            スライドを複製
+          </button>
         </div>
       )}
     </div>
