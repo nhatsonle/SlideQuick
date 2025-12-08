@@ -75,6 +75,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // accept overrideToken so we can call right after login/register
   const refreshProjects = async (overrideToken?: string, silent: boolean = false) => {
     try {
+      // If we don't have a token (and no override), we are likely a guest.
+      // Don't attempt to fetch from API to avoid 401 and state wipe.
+      const currentToken = overrideToken ?? token ?? localStorage.getItem("sq_token");
+      if (!currentToken) {
+        // Guest mode: just clear projects list but DON'T wipe currentProject 
+        // because it might be populated by Editor.tsx (shared session)
+        setProjects([]);
+        setLoading(false);
+        return;
+      }
+
       if (!silent) setLoading(true);
       const response = await fetch(`${API_URL}/projects`, {
         headers: getHeaders(overrideToken),
@@ -86,6 +97,17 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setCurrentUser(null);
         setToken(null);
         setProjects([]);
+        // Do NOT wipe currentProject here blindly, as it might be a shared session.
+        // Only wipe if we were expecting to be logged in.
+        // Actually, if 401 happens, it means our token is bad.
+        // But if we are in Editor viewing a shared Link, we don't want to receive this error.
+        // The check above (!currentToken) should prevent us reaching here if we are purely guest.
+        // If we HAD a token but it expired, we fall here. 
+        // In that case, we should probably let it wipe to be safe? 
+        // BUT, if I am viewing a shared link with an expired token, I should probably just be downgraded to guest 
+        // and keep viewing the shared link.
+
+        // For now, let's keep the wipe but reliance on the check above is key.
         setCurrentProject(null);
         setCurrentSlideIndex(0);
         localStorage.removeItem("sq_user");
@@ -140,6 +162,8 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   // 現在のプロジェクトを更新
   useEffect(() => {
     if (currentProject) {
+      // sync updates from the list ONLY if it's one of the fetched projects (owned)
+      // otherwise, currentProject updates are handled locally or via setCurrentProject directly from Editor
       const updated = projects.find((p) => p.id === currentProject.id);
       if (updated) {
         setCurrentProject(updated);
@@ -205,6 +229,16 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     try {
       const updatedProject = { ...project, updatedAt: new Date() };
 
+      // always update local state immediately
+      setCurrentProject(updatedProject);
+
+      // Only sync to API if we own this project (it's in our projects list)
+      // If we are a guest, Editor.tsx handles the Firebase sync, and we shouldn't hit the API
+      const isOwned = projects.some(p => p.id === project.id);
+      if (!isOwned) {
+        return;
+      }
+
       const response = await fetch(`${API_URL}/projects/${project.id}`, {
         method: "PUT",
         headers: getHeaders(),
@@ -216,12 +250,13 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
       await refreshProjects(undefined, true);
     } catch (error) {
       console.error("プロジェクト更新エラー:", error);
-      alert("プロジェクトの更新に失敗しました");
+      // alert("プロジェクトの更新に失敗しました");
     }
   };
 
   const addSlide = async (projectId: string, template: Slide["template"]) => {
-    const project = projects.find((p) => p.id === projectId);
+    // try to find in list, otherwise fallback to currentProject (for guests)
+    const project = projects.find((p) => p.id === projectId) || (currentProject?.id === projectId ? currentProject : null);
     if (!project) return;
 
     const newSlide: Slide = {
@@ -247,7 +282,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
     slideId: string,
     updates: Partial<Slide>
   ) => {
-    const project = projects.find((p) => p.id === projectId);
+    const project = projects.find((p) => p.id === projectId) || (currentProject?.id === projectId ? currentProject : null);
     if (!project) return;
 
     const updatedProject = {
@@ -262,7 +297,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const deleteSlide = async (projectId: string, slideId: string) => {
-    const project = projects.find((p) => p.id === projectId);
+    const project = projects.find((p) => p.id === projectId) || (currentProject?.id === projectId ? currentProject : null);
     if (!project || project.slides.length <= 1) return;
 
     const updatedProject = {
@@ -275,7 +310,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   };
 
   const duplicateSlide = async (projectId: string, slideId: string) => {
-    const project = projects.find((p) => p.id === projectId);
+    const project = projects.find((p) => p.id === projectId) || (currentProject?.id === projectId ? currentProject : null);
     if (!project) return;
 
     const slideIndex = project.slides.findIndex((s) => s.id === slideId);

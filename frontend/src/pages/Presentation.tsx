@@ -1,24 +1,40 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getSessionOnce } from '../services/collab';
 import '../styles/Presentation.css';
 
 export default function Presentation() {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { projects } = useApp();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [project, setProject] = useState<any>(null);
 
   useEffect(() => {
     const proj = projects.find(p => p.id === projectId);
+    const share = searchParams.get('share');
+
     if (proj) {
       setProject(proj);
+    } else if (share) {
+      // Try to fetch shared session
+      getSessionOnce(share).then((snap) => {
+        if (snap && snap.project) {
+          setProject(snap.project);
+        } else {
+          // Not found
+          console.warn('Shared presentation not found');
+          navigate('/');
+        }
+      });
     } else {
+      // Not found locally and no share link
       navigate('/');
     }
-  }, [projectId, projects]);
+  }, [projectId, projects, searchParams]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -54,7 +70,12 @@ export default function Presentation() {
   };
 
   const exitPresentation = () => {
-    navigate(`/editor/${projectId}`);
+    const share = searchParams.get('share');
+    if (share) {
+      navigate(`/editor/${projectId}?share=${share}`);
+    } else {
+      navigate(`/editor/${projectId}`);
+    }
   };
 
   const renderSlideContent = () => {

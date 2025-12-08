@@ -1,33 +1,193 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Slide } from '../../types';
 import SlideEditor from '../components/SlideEditor';
 import { exportToPDF } from '../utils/pdfExport';
+import { genShareId, createSessionDoc, subscribeSession, writeSessionProject, getSessionOnce } from '../services/collab';
 import '../styles/Editor.css';
 
 export default function Editor() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide } = useApp();
+  const [searchParams] = useSearchParams();
+  const { projects, currentProject, currentSlideIndex, setCurrentProject, setCurrentSlideIndex, addSlide, deleteSlide, duplicateSlide, currentUser } = useApp();
   const [showTemplates, setShowTemplates] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; slideId: string } | null>(null);
 
+  // Collaborative state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareRole, setShareRole] = useState<'edit' | 'view'>('edit');
+  const [isReadOnly, setIsReadOnly] = useState(false);
+
+  const sessionIdRef = useRef<string | null>(null);
+  const sessionUnsubRef = useRef<(() => void) | null>(null);
+  // client id to avoid echo
+  const clientIdRef = useRef<string>(crypto && (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2, 9));
+
+  // Track if project is loaded to avoid stale closure in setTimeout
+  const projectLoadedRef = useRef(false);
+
   useEffect(() => {
     const project = projects.find(p => p.id === projectId);
+    const share = searchParams.get('share');
     if (project) {
       setCurrentProject(project);
-    } else {
+      projectLoadedRef.current = true;
+    } else if (!share) {
+      // only navigate away when there's no share id — otherwise wait for joinSession to set project
       navigate('/');
     }
-  }, [projectId, projects]);
+  }, [projectId, projects, searchParams]); // note: include searchParams
+
+  // Error handling
+  const [loadingError, setLoadingError] = useState<string | null>(null);
+
+  // auto-join if URL has ?share=...
+  useEffect(() => {
+    const s = searchParams.get('share');
+    if (s) {
+      console.log('Found share param:', s);
+      setLoadingError(null);
+      projectLoadedRef.current = false; // reset loading state
+
+      // Set a timeout to show error if loading takes too long
+      const timer = setTimeout(() => {
+        // Use ref to check current status, preventing stale closure issue
+        if (!projectLoadedRef.current) {
+          console.warn('Loading timeout reached (15s) - Project not loaded');
+          setLoadingError('読み込みに時間がかかっています。リンクが正しいか確認してください。');
+        } else {
+          console.log('Timeout check passed: Project is loaded');
+        }
+      }, 15000); // Extended to 15 seconds
+
+      joinSession(s);
+
+      return () => clearTimeout(timer);
+    }
+    return () => {
+      // cleanup on unmount: unsubscribe session if exists
+      if (sessionUnsubRef.current) {
+        try { sessionUnsubRef.current(); } catch { }
+        sessionUnsubRef.current = null;
+        sessionIdRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // subscribe session -> apply remote updates to currentProject and role
+  async function joinSession(sessionId: string) {
+    console.log('Joining session:', sessionId);
+    // unsubscribe previous
+    if (sessionUnsubRef.current) {
+      sessionUnsubRef.current();
+      sessionUnsubRef.current = null;
+    }
+    sessionIdRef.current = sessionId;
+
+    // Try fetch session once immediately (so viewer sees content without waiting)
+    try {
+      console.log('Fetching session once...');
+      const snap = await getSessionOnce(sessionId);
+      console.log('fetchSessionOnce result:', snap);
+
+      if (snap && snap.project) {
+        // apply role/read-only logic from snapshot
+        const role: 'edit' | 'view' = snap.role || 'edit';
+        const ownerId: string | null = snap.ownerId || null;
+        const isOwner = !!(currentUser && ownerId && currentUser.id === ownerId);
+        setIsReadOnly(role === 'view' && !isOwner);
+        setCurrentProject(snap.project);
+        projectLoadedRef.current = true; // Mark as loaded
+        console.log('Project loaded from snapshot');
+      } else if (snap === null) {
+        // explicitly null means not found
+        console.warn('Session not found (snap is null)');
+        setLoadingError('指定された共有スライドは見つかりませんでした。');
+      }
+    } catch (err) {
+      console.warn('getSessionOnce failed', err);
+    }
+
+    // then subscribe for realtime/polling updates
+    console.log('Subscribing to session...');
+    const unsub = subscribeSession(sessionId, (data) => {
+      console.log('Session update received:', data ? 'Data present' : 'Null');
+      if (!data) {
+        // session missing: wait for getSessionOnce to handle "not found" or keep waiting
+        // if getSessionOnce already finished and found nothing, error is shown.
+        // if this returns null late, it might mean deletion.
+        return;
+      }
+      const role: 'edit' | 'view' = data.role || 'edit';
+      const ownerId: string | null = data.ownerId || null;
+      const isOwner = !!(currentUser && ownerId && currentUser.id === ownerId);
+      setIsReadOnly(role === 'view' && !isOwner);
+
+      // ignore updates originated from this client
+      if (data.lastClient === clientIdRef.current) return;
+      if (data.project) {
+        setCurrentProject(data.project);
+        projectLoadedRef.current = true; // Mark as loaded (in case snapshot failed but stream worked)
+      }
+    });
+    sessionUnsubRef.current = unsub;
+  }
+
+  // create share session (owner) and subscribe
+  async function handleCreateShare() {
+    if (!currentProject) return;
+    const sid = genShareId();
+    const link = `${window.location.origin}/editor/${currentProject.id}?share=${sid}`;
+    setShareLink(link);
+    setShareError(null);
+    setShareModalOpen(true);
+
+    try {
+      const ownerId = currentUser ? currentUser.id : undefined;
+      await createSessionDoc(sid, currentProject, shareRole, ownerId);
+      await joinSession(sid);
+    } catch (err) {
+      console.error('Failed to create share session', err);
+      setShareError('共有セッションの作成に失敗しました。オフラインリンクを作成しました。再試行できます。');
+    }
+  }
+
+  // when local currentProject changes, push to session (if any and if editable)
+  useEffect(() => {
+    if (!sessionIdRef.current) return;
+    if (!currentProject) return;
+    // do not push if read-only local client
+    if (isReadOnly) return;
+    (async () => {
+      try {
+        await writeSessionProject(sessionIdRef.current as string, currentProject, clientIdRef.current);
+      } catch (err) {
+        console.error('Failed to write session project', err);
+      }
+    })();
+  }, [currentProject, isReadOnly]);
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
+
+  if (loadingError) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
+        <h2>エラー</h2>
+        <p>{loadingError}</p>
+        <button className="btn-primary" onClick={() => navigate('/')}>ホームへ戻る</button>
+      </div>
+    );
+  }
 
   if (!currentProject) {
     return <div>Loading...</div>;
@@ -40,11 +200,13 @@ export default function Editor() {
   }
 
   const handleAddSlide = async (template: Slide['template']) => {
+    if (isReadOnly) return;
     await addSlide(currentProject.id, template);
     setShowTemplates(false);
   };
 
   const handleDeleteSlide = async () => {
+    if (isReadOnly) return;
     if (currentProject.slides.length > 1 && confirm('このスライドを削除してもよろしいですか？')) {
       await deleteSlide(currentProject.id, currentSlide.id);
       if (currentSlideIndex >= currentProject.slides.length - 1) {
@@ -54,6 +216,7 @@ export default function Editor() {
   };
 
   const handleDuplicateSlide = async () => {
+    if (isReadOnly) return;
     if (contextMenu) {
       await duplicateSlide(currentProject.id, contextMenu.slideId);
       setContextMenu(null);
@@ -70,7 +233,11 @@ export default function Editor() {
   };
 
   const handlePresent = () => {
-    navigate(`/present/${currentProject.id}`);
+    if (searchParams.get('share')) {
+      navigate(`/present/${currentProject.id}?share=${searchParams.get('share')}`);
+    } else {
+      navigate(`/present/${currentProject.id}`);
+    }
   };
 
   const handleExport = async () => {
@@ -90,25 +257,29 @@ export default function Editor() {
     { id: 'image-text', name: '画像とテキスト', description: '画像と説明文' },
   ];
 
+  // render: add Share button in header and share modal with role selector
   return (
     <div className="editor">
       <header className="editor-header">
         <button className="btn-icon" onClick={() => navigate('/')} title="ホーム">
           <Home size={20} />
         </button>
-        <h1 className="project-title">{currentProject.name}</h1>
+        <h1 className="project-title">{currentProject.name}{isReadOnly ? ' (閲覧専用)' : ''}</h1>
         <div className="header-actions">
-          <button className="btn-secondary" onClick={handleExport}>
-            <Download size={18} />
-            PDFエクスポート
-          </button>
+          {!isReadOnly && (
+            <button className="btn-secondary" onClick={handleExport}>
+              <Download size={18} />
+              PDFエクスポート
+            </button>
+          )}
           <button className="btn-primary" onClick={handlePresent}>
             <Play size={18} />
             プレゼン開始
           </button>
-          {/* <button className="btn-secondary" onClick={handleLogout} style={{ marginLeft: 8 }}>
-            ログアウト
-          </button> */}
+
+          <button className="btn-secondary" onClick={() => setShareModalOpen(true)} style={{ marginLeft: 8 }}>
+            共有
+          </button>
         </div>
       </header>
 
@@ -116,9 +287,11 @@ export default function Editor() {
         <aside className="slides-sidebar">
           <div className="sidebar-header">
             <h3>スライド</h3>
-            <button className="btn-icon" onClick={() => setShowTemplates(true)} title="スライドを追加">
-              <Plus size={18} />
-            </button>
+            {!isReadOnly && (
+              <button className="btn-icon" onClick={() => setShowTemplates(true)} title="スライドを追加">
+                <Plus size={18} />
+              </button>
+            )}
           </div>
           <div className="slides-list">
             {currentProject.slides.map((slide, index) => (
@@ -126,7 +299,7 @@ export default function Editor() {
                 key={slide.id}
                 className={`slide-thumbnail ${index === currentSlideIndex ? 'active' : ''}`}
                 onClick={() => setCurrentSlideIndex(index)}
-                onContextMenu={(e) => handleContextMenu(e, slide.id)}
+                onContextMenu={(e) => { if (!isReadOnly) handleContextMenu(e, slide.id); }}
               >
                 <div className="thumbnail-number">{index + 1}</div>
                 <div className="thumbnail-content" style={{ backgroundColor: slide.backgroundColor, color: slide.textColor }}>
@@ -157,13 +330,16 @@ export default function Editor() {
               <ChevronRight size={20} />
             </button>
             <div className="spacer"></div>
-            <button className="btn-danger-outline" onClick={handleDeleteSlide}>
-              <Trash2 size={18} />
-              スライドを削除
-            </button>
+            {!isReadOnly && (
+              <button className="btn-danger-outline" onClick={handleDeleteSlide}>
+                <Trash2 size={18} />
+                スライドを削除
+              </button>
+            )}
           </div>
 
-          <SlideEditor slide={currentSlide} projectId={currentProject.id} />
+          {/* pass readOnly prop to SlideEditor so it can disable editing UI */}
+          <SlideEditor slide={currentSlide} projectId={currentProject.id} readOnly={isReadOnly} />
         </main>
       </div>
 
@@ -240,6 +416,49 @@ export default function Editor() {
           >
             スライドを複製
           </button>
+        </div>
+      )}
+
+      {/* Share modal */}
+      {shareModalOpen && (
+        <div className="modal-overlay" onClick={() => setShareModalOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>プロジェクトを共有</h2>
+            <p>共有リンクの権限を選択してください。</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="radio" checked={shareRole === 'edit'} onChange={() => setShareRole('edit')} />
+                編集可能
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input type="radio" checked={shareRole === 'view'} onChange={() => setShareRole('view')} />
+                閲覧のみ
+              </label>
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <button className="btn-primary" onClick={handleCreateShare}>リンクを作成</button>
+            </div>
+
+            {shareLink && (
+              <>
+                <p>共有リンク:</p>
+                <input type="text" readOnly value={shareLink} style={{ width: '100%' }} />
+                {shareError && (
+                  <div style={{ marginTop: 8, color: 'red' }}>{shareError}</div>
+                )}
+                <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
+                  <button className="btn-primary" onClick={async () => {
+                    if (shareLink) {
+                      await navigator.clipboard.writeText(shareLink);
+                      alert('共有リンクをコピーしました');
+                    }
+                  }}>コピー</button>
+                  <button className="btn-secondary" onClick={() => setShareModalOpen(false)}>閉じる</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

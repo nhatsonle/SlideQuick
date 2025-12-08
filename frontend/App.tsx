@@ -22,6 +22,12 @@ function RequireAuth({ children }: { children: React.ReactElement }) {
     return null;
   }
 
+  // Allow access if share query param is present
+  const query = new URLSearchParams(location.search);
+  if (query.get('share')) {
+    return children;
+  }
+
   if (!currentUser) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
