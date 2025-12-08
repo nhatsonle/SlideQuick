@@ -81,13 +81,18 @@ export default function Home() {
                 <div
                   key={project.id}
                   className="project-card"
-                  onClick={() => handleOpenProject(project)}
+
                 >
-                  <div className="project-preview">
+                  <div className="project-preview" onClick={() => handleOpenProject(project)}>
                     <div className="slide-count">{project.slides.length} スライド</div>
                   </div>
-                  <div className="project-info">
+                  <div className="project-info" onClick={() => handleOpenProject(project)}>
                     <h3>{project.name}</h3>
+                    {project.ownerName && (
+                      <p className="project-owner">
+                        作成者: {project.ownerName}
+                      </p>
+                    )}
                     <p className="project-date">
                       更新日: {new Date(project.updatedAt).toLocaleDateString('ja-JP')}
                     </p>
@@ -104,11 +109,16 @@ export default function Home() {
                       <Edit size={18} />
                     </button>
                     <button
+                      type="button"
                       className="btn-icon btn-danger"
-                      onClick={(e) => handleDeleteProject(e, project.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleDeleteProject(e, project.id);
+                      }}
                       title="削除"
                     >
-                      <Trash2 size={18} />
+                      <Trash2 size={18} style={{ pointerEvents: 'none' }} />
                     </button>
                   </div>
                 </div>

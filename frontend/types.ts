@@ -11,6 +11,7 @@ export interface Slide {
 export interface Project {
   id: string;
   name: string;
+  ownerName?: string;
   slides: Slide[];
   createdAt: Date;
   updatedAt: Date;

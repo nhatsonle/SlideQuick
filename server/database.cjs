@@ -55,7 +55,7 @@ function initializeDatabase() {
   const slideCols = db.prepare("PRAGMA table_info('slides')").all();
   const hasImageUrl = slideCols.some((c) => c.name === "image_url");
   if (!hasImageUrl) {
-      db.exec("ALTER TABLE slides ADD COLUMN image_url TEXT");
+    db.exec("ALTER TABLE slides ADD COLUMN image_url TEXT");
   }
 
   // ユーザーテーブルを作成
@@ -76,10 +76,15 @@ function initializeDatabase() {
 // プロジェクトの取得（スライド含む） -- filter by ownerId
 function getAllProjects(ownerId) {
   const projects = db
-    .prepare(
-      "SELECT * FROM projects WHERE owner_id = ? ORDER BY updated_at DESC"
-    )
+    .prepare(`
+      SELECT p.*, u.username as owner_name 
+      FROM projects p
+      LEFT JOIN users u ON p.owner_id = u.id
+      WHERE p.owner_id = ? 
+      ORDER BY p.updated_at DESC
+    `)
     .all(ownerId || "");
+
   return projects.map((project) => {
     const slides = db
       .prepare("SELECT * FROM slides WHERE project_id = ? ORDER BY slide_order")
@@ -87,6 +92,7 @@ function getAllProjects(ownerId) {
     return {
       id: project.id,
       name: project.name,
+      ownerName: project.owner_name,
       createdAt: project.created_at,
       updatedAt: project.updated_at,
       slides: slides.map((slide) => ({
@@ -94,7 +100,6 @@ function getAllProjects(ownerId) {
         title: slide.title,
         content: slide.content,
         template: slide.template,
-        backgroundColor: slide.background_color,
         backgroundColor: slide.background_color,
         textColor: slide.text_color,
         imageUrl: slide.image_url
@@ -106,8 +111,14 @@ function getAllProjects(ownerId) {
 // プロジェクトをIDで取得 -- only if owner matches
 function getProjectById(id, ownerId) {
   const project = db
-    .prepare("SELECT * FROM projects WHERE id = ? AND owner_id = ?")
+    .prepare(`
+      SELECT p.*, u.username as owner_name
+      FROM projects p
+      LEFT JOIN users u ON p.owner_id = u.id
+      WHERE p.id = ? AND p.owner_id = ?
+    `)
     .get(id, ownerId);
+
   if (!project) return null;
   const slides = db
     .prepare("SELECT * FROM slides WHERE project_id = ? ORDER BY slide_order")
@@ -115,6 +126,7 @@ function getProjectById(id, ownerId) {
   return {
     id: project.id,
     name: project.name,
+    ownerName: project.owner_name,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
     slides: slides.map((slide) => ({
@@ -122,7 +134,6 @@ function getProjectById(id, ownerId) {
       title: slide.title,
       content: slide.content,
       template: slide.template,
-      backgroundColor: slide.background_color,
       backgroundColor: slide.background_color,
       textColor: slide.text_color,
       imageUrl: slide.image_url

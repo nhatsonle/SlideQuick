@@ -303,7 +303,57 @@ export default function Editor() {
               >
                 <div className="thumbnail-number">{index + 1}</div>
                 <div className="thumbnail-content" style={{ backgroundColor: slide.backgroundColor, color: slide.textColor }}>
-                  <div className="thumbnail-title">{slide.title}</div>
+                  {(() => {
+                    // Mini-render logic
+                    const titleStyle: React.CSSProperties = { fontSize: '0.6rem', fontWeight: 'bold', textAlign: 'center', width: '100%', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' };
+                    const textStyle: React.CSSProperties = { fontSize: '0.4rem', flex: 1, overflow: 'hidden', width: '100%' };
+
+                    switch (slide.template) {
+                      case 'title':
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%' }}>
+                            <div style={titleStyle}>{slide.title || 'タイトル'}</div>
+                          </div>
+                        );
+                      case 'title-content':
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', gap: '2px' }}>
+                            <div style={{ ...titleStyle, flex: '0 0 auto', textAlign: 'left' }}>{slide.title || 'タイトル'}</div>
+                            <div style={textStyle}>{slide.content || 'クリックして編集'}</div>
+                          </div>
+                        );
+                      case 'two-column':
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', gap: '2px' }}>
+                            <div style={{ ...titleStyle, flex: '0 0 auto', textAlign: 'left' }}>{slide.title || 'タイトル'}</div>
+                            <div style={{ display: 'flex', gap: '2px', flex: 1 }}>
+                              <div style={{ flex: 1, fontSize: '0.3rem', border: '1px dashed #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>列1</div>
+                              <div style={{ borderLeft: '1px solid #eee', width: 0 }}></div>
+                              <div style={{ flex: 1, fontSize: '0.3rem', overflow: 'hidden' }}>{slide.content || '本文'}</div>
+                            </div>
+                          </div>
+                        );
+                      case 'image-text':
+                        return (
+                          <div style={{ display: 'flex', height: '100%', width: '100%', gap: '4px', alignItems: 'center' }}>
+                            <div style={{ width: '40%', height: '80%', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              {slide.imageUrl ? <img src={slide.imageUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '0.5rem' }}>📷</span>}
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                              <div style={{ ...titleStyle, textAlign: 'left', fontSize: '0.5rem' }}>{slide.title || 'タイトル'}</div>
+                              <div style={{ ...textStyle, fontSize: '0.3rem', height: '2em' }}>{slide.content || '本文'}</div>
+                            </div>
+                          </div>
+                        );
+                      case 'blank':
+                      default:
+                        return (
+                          <div style={{ width: '100%', height: '100%', padding: '2px', fontSize: '0.4rem', overflow: 'hidden' }}>
+                            {slide.content || '空白'}
+                          </div>
+                        );
+                    }
+                  })()}
                 </div>
               </div>
             ))}
