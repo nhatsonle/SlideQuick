@@ -5,7 +5,7 @@ import { Home, Plus, Trash2, Play, Download, ChevronLeft, ChevronRight } from 'l
 import { Slide } from '../../types';
 import SlideEditor from '../components/SlideEditor';
 import { exportToPDF } from '../utils/pdfExport';
-import { genShareId, createSessionDoc, subscribeSession, writeSessionProject, getSessionOnce } from '../services/collab';
+import { genShareId, createSessionDoc, subscribeSession, writeSessionProject, getSessionOnce, subscribeChat, sendChatMessage } from '../services/collab';
 import '../styles/Editor.css';
 
 export default function Editor() {
@@ -21,7 +21,10 @@ export default function Editor() {
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareRole, setShareRole] = useState<'edit' | 'view'>('edit');
+
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const [messages, setMessages] = useState<any[]>([]);
+  const chatUnsubRef = useRef<(() => void) | null>(null);
 
   const sessionIdRef = useRef<string | null>(null);
   const sessionUnsubRef = useRef<(() => void) | null>(null);
@@ -74,7 +77,12 @@ export default function Editor() {
       if (sessionUnsubRef.current) {
         try { sessionUnsubRef.current(); } catch { }
         sessionUnsubRef.current = null;
+        sessionUnsubRef.current = null;
         sessionIdRef.current = null;
+      }
+      if (chatUnsubRef.current) {
+        chatUnsubRef.current();
+        chatUnsubRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,6 +95,11 @@ export default function Editor() {
     if (sessionUnsubRef.current) {
       sessionUnsubRef.current();
       sessionUnsubRef.current = null;
+      sessionUnsubRef.current = null;
+    }
+    if (chatUnsubRef.current) {
+      chatUnsubRef.current();
+      chatUnsubRef.current = null;
     }
     sessionIdRef.current = sessionId;
 
@@ -136,7 +149,14 @@ export default function Editor() {
         projectLoadedRef.current = true; // Mark as loaded (in case snapshot failed but stream worked)
       }
     });
+
     sessionUnsubRef.current = unsub;
+
+    // subscribe chat
+    const chatUnsub = subscribeChat(sessionId, (msgs) => {
+      setMessages(msgs);
+    });
+    chatUnsubRef.current = chatUnsub;
   }
 
   // create share session (owner) and subscribe
@@ -389,7 +409,22 @@ export default function Editor() {
           </div>
 
           {/* pass readOnly prop to SlideEditor so it can disable editing UI */}
-          <SlideEditor slide={currentSlide} projectId={currentProject.id} readOnly={isReadOnly} />
+          <SlideEditor
+            slide={currentSlide}
+            projectId={currentProject.id}
+            readOnly={isReadOnly}
+            messages={messages}
+            username={currentUser?.username || `Guest-${clientIdRef.current.slice(0, 4)}`}
+            onSendMessage={async (text) => {
+              if (sessionIdRef.current) {
+                await sendChatMessage(sessionIdRef.current, {
+                  sender: currentUser?.username || `Guest-${clientIdRef.current.slice(0, 4)}`,
+                  text,
+                  timestamp: Date.now()
+                });
+              }
+            }}
+          />
         </main>
       </div>
 

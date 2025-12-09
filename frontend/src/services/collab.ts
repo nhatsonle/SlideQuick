@@ -6,6 +6,11 @@ import {
     onSnapshot,
     serverTimestamp,
     getDoc,
+    collection,
+    addDoc,
+    query,
+    orderBy,
+    limit,
 } from 'firebase/firestore';
 
 // generate short random id for share links
@@ -104,4 +109,20 @@ function deserializeProject(p: any) {
     if (typeof copy.createdAt === 'string') copy.createdAt = new Date(copy.createdAt);
     if (typeof copy.updatedAt === 'string') copy.updatedAt = new Date(copy.updatedAt);
     return copy;
+}
+
+/* Chat Functions */
+export async function sendChatMessage(sessionId: string, message: { sender: string; text: string; timestamp: number }) {
+    const messagesRef = collection(db, 'sessions', sessionId, 'messages');
+    await addDoc(messagesRef, message);
+}
+
+export function subscribeChat(sessionId: string, onMessage: (messages: any[]) => void) {
+    const messagesRef = collection(db, 'sessions', sessionId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(100));
+
+    return onSnapshot(q, (snapshot) => {
+        const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        onMessage(messages);
+    });
 }

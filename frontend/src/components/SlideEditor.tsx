@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Send, Settings, MessageSquare } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { Slide } from "../../types";
 import "../styles/SlideEditor.css";
@@ -7,10 +8,38 @@ interface SlideEditorProps {
   slide: Slide;
   projectId: string;
   readOnly?: boolean;
+  messages?: Array<{ id: string; sender: string; text: string; timestamp: number }>;
+  onSendMessage?: (text: string) => Promise<void>;
+  username?: string;
 }
 
-export default function SlideEditor({ slide, projectId, readOnly = false }: SlideEditorProps) {
+export default function SlideEditor({ slide, projectId, readOnly = false, messages = [], onSendMessage, username }: SlideEditorProps) {
   const { updateSlide } = useApp();
+  const [activeTab, setActiveTab] = useState<'settings' | 'chat'>('settings');
+  const [chatInput, setChatInput] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Switch to chat if readOnly (since settings are hidden/disabled) but allow toggling if implementation desires.
+  // Actually, let's default to 'chat' if readOnly, 'settings' otherwise, but user can switch.
+  useEffect(() => {
+    if (readOnly) setActiveTab('chat');
+  }, [readOnly]);
+
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, activeTab]);
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !onSendMessage) return;
+    try {
+      await onSendMessage(chatInput.trim());
+      setChatInput("");
+    } catch (e) {
+      console.error(e);
+    }
+  };
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingContent, setIsEditingContent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -280,42 +309,146 @@ export default function SlideEditor({ slide, projectId, readOnly = false }: Slid
       >
         {renderSlideContent()}
       </div>
-      {!readOnly && (
-        <div className="slide-properties">
-          <h3>スライド設定</h3>
-          <div className="property-group">
-            <label>背景色</label>
-            <input
-              type="color"
-              value={slide.backgroundColor}
-              onChange={(e) => handleColorUpdate({ backgroundColor: e.target.value })}
-            />
-          </div>
-          <div className="property-group">
-            <label>文字色</label>
-            <input
-              type="color"
-              value={slide.textColor}
-              onChange={(e) => handleColorUpdate({ textColor: e.target.value })}
-            />
-          </div>
-          <div className="property-group">
-            <label>テンプレート</label>
-            <select
-              value={slide.template}
-              onChange={(e) =>
-                handleColorUpdate({ template: e.target.value as Slide["template"] })
-              }
+
+
+      <div className="slide-sidebar-right" style={{ width: '280px', background: 'white', borderLeft: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column' }}>
+        <div className="sidebar-tabs" style={{ display: 'flex', borderBottom: '1px solid #e0e0e0' }}>
+          {!readOnly && (
+            <button
+              onClick={() => setActiveTab('settings')}
+              style={{
+                flex: 1,
+                padding: '10px',
+                background: activeTab === 'settings' ? 'white' : '#f5f5f5',
+                border: 'none',
+                borderBottom: activeTab === 'settings' ? '2px solid #667eea' : 'none',
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                fontWeight: activeTab === 'settings' ? 600 : 400
+              }}
             >
-              <option value="blank">空白</option>
-              <option value="title">タイトル</option>
-              <option value="title-content">タイトルと内容</option>
-              <option value="two-column">2カラム</option>
-              <option value="image-text">画像とテキスト</option>
-            </select>
-          </div>
+              <Settings size={16} /> 設定
+            </button>
+          )}
+          <button
+            onClick={() => setActiveTab('chat')}
+            style={{
+              flex: 1,
+              padding: '10px',
+              background: activeTab === 'chat' ? 'white' : '#f5f5f5',
+              border: 'none',
+              borderBottom: activeTab === 'chat' ? '2px solid #667eea' : 'none',
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              fontWeight: activeTab === 'chat' ? 600 : 400
+            }}
+          >
+            <MessageSquare size={16} /> チャット
+          </button>
         </div>
-      )}
+
+        {activeTab === 'settings' && !readOnly && (
+          <div className="slide-properties" style={{ padding: '16px', flex: 1, overflowY: 'auto' }}>
+            <h3>スライド設定</h3>
+            <div className="property-group">
+              <label>背景色</label>
+              <input
+                type="color"
+                value={slide.backgroundColor}
+                onChange={(e) => handleColorUpdate({ backgroundColor: e.target.value })}
+              />
+            </div>
+            <div className="property-group">
+              <label>文字色</label>
+              <input
+                type="color"
+                value={slide.textColor}
+                onChange={(e) => handleColorUpdate({ textColor: e.target.value })}
+              />
+            </div>
+            <div className="property-group">
+              <label>テンプレート</label>
+              <select
+                value={slide.template}
+                onChange={(e) =>
+                  handleColorUpdate({ template: e.target.value as Slide["template"] })
+                }
+              >
+                <option value="blank">空白</option>
+                <option value="title">タイトル</option>
+                <option value="title-content">タイトルと内容</option>
+                <option value="two-column">2カラム</option>
+                <option value="image-text">画像とテキスト</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'chat' && (
+          <div className="chat-panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            <div className="messages-list" style={{ flex: 1, overflowY: 'auto', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {messages.length === 0 ? (
+                <div style={{ color: '#999', textAlign: 'center', marginTop: '20px', fontSize: '0.9rem' }}>
+                  メッセージはまだありません
+                </div>
+              ) : (
+                messages.map((msg, idx) => {
+                  const isMe = msg.sender === username;
+                  return (
+                    <div key={msg.id || idx} style={{
+                      alignSelf: isMe ? 'flex-end' : 'flex-start',
+                      maxWidth: '85%',
+                      marginBottom: '4px'
+                    }}>
+                      {!isMe && <div style={{ fontSize: '0.7rem', color: '#666', marginBottom: '2px', marginLeft: '4px' }}>{msg.sender}</div>}
+                      <div style={{
+                        padding: '8px 12px',
+                        background: isMe ? '#667eea' : '#e0e0e0',
+                        color: isMe ? 'white' : '#333',
+                        borderRadius: '12px',
+                        fontSize: '0.9rem',
+                        wordBreak: 'break-word'
+                      }}>
+                        {msg.text}
+                      </div>
+                      <div style={{ fontSize: '0.65rem', color: '#999', textAlign: isMe ? 'right' : 'left', marginTop: '2px', marginRight: '4px' }}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+            <div className="chat-input-area" style={{ padding: '10px', borderTop: '1px solid #e0e0e0', display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                placeholder="メッセージを入力..."
+                style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
+              />
+              <button
+                onClick={handleSendMessage}
+                style={{
+                  background: '#667eea',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  width: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
